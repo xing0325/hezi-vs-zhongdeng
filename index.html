@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>赫子 ✕ 中登 — 流体显形</title>
+<style>
+  /* ============================================================
+     赫子 vs 中登 — fluid-reveal hero
+     复用自 lando-hero-replica 的流体显形实验 · 零依赖 · 红黑白(FCC)配色
+     ============================================================ */
+  :root{
+    --ink:#231815;        /* FCC 近黑 */
+    --ink-soft:#8c877f;
+    --paper:#f5f5f5;      /* off-white 纸白 */
+    --accent:#cd131c;     /* FCC 红 */
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; overscroll-behavior:none; }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Mona Sans','Helvetica Neue',system-ui,'Microsoft YaHei',Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:var(--accent); color:#fff; }
+
+  #gl{
+    position:fixed; inset:0;
+    width:100%; height:100svh;
+    display:block;
+    cursor:crosshair;
+    z-index:1;
+    touch-action:none;
+    -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none;
+  }
+
+  /* ---- UI overlay ---- */
+  .ui{
+    position:fixed; inset:0;
+    pointer-events:none;
+    display:flex; flex-direction:column;
+    justify-content:space-between;
+    padding:clamp(16px,2.6vw,34px);
+    z-index:2;
+  }
+  .row{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .row.bottom{ align-items:flex-end; }
+
+  .wordmark{
+    font-size:clamp(17px,1.55vw,23px);
+    letter-spacing:.02em;
+    text-transform:uppercase;
+    font-weight:600;
+  }
+  .wordmark .x{ color:var(--accent); margin:0 .18em; font-weight:400; }
+  .wordmark small{
+    display:block;
+    font-size:.52em; font-weight:400;
+    letter-spacing:.24em;
+    color:var(--ink-soft);
+    margin-top:4px; text-transform:uppercase;
+  }
+  .est{
+    text-align:right;
+    font-size:clamp(10px,.85vw,12.5px);
+    color:var(--ink-soft);
+    line-height:1.55; letter-spacing:.06em; text-transform:uppercase;
+  }
+  .est b{ color:var(--accent); font-weight:700; }
+
+  .name-block{ line-height:.86; }
+  .name-block .eyebrow{
+    font-size:clamp(10px,.82vw,13px);
+    font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 clamp(8px,1vw,14px) 3px;
+  }
+  .name-block h1{
+    font-weight:800;
+    font-size:clamp(72px,15vw,220px);
+    letter-spacing:-.01em;
+    display:flex; overflow:hidden;
+  }
+  .name-block h1 span{ display:inline-block; transform:translateY(110%); }
+
+  .colophon{
+    max-width:min(38ch,42vw);
+    text-align:right;
+    font-size:clamp(11px,.95vw,14px);
+    line-height:1.7;
+    color:var(--ink-soft);
+  }
+  .colophon b{ color:var(--ink); font-weight:700; }
+  .colophon .accent{ color:var(--accent); }
+
+  /* ---- center hint ---- */
+  .hint{
+    position:fixed; left:50%; top:72%;
+    transform:translate(-50%,-50%);
+    z-index:2; pointer-events:none;
+    font-size:clamp(12px,1.05vw,15px);
+    letter-spacing:.3em; text-transform:uppercase;
+    color:var(--ink-soft);
+    opacity:0;
+  }
+  .hint.gone{ opacity:0 !important; animation:none !important; }
+  @keyframes hintPulse{ 0%,100%{opacity:.9} 50%{opacity:.32} }
+
+  /* ---- load-in choreography (armed by boot) ---- */
+  .reveal-up{ opacity:0; }
+  body.booted .reveal-up{ animation:revealUp 1s cubic-bezier(.22,1,.36,1) forwards; }
+  .d1{ animation-delay:.5s } .d2{ animation-delay:.66s }
+  .d3{ animation-delay:.82s } .d4{ animation-delay:.98s }
+  @keyframes revealUp{
+    from{ opacity:0; transform:translateY(18px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  body.booted .name-block h1 span{ animation:slideUp 1.1s cubic-bezier(.22,1,.36,1) .32s forwards; }
+  .name-block h1 span:nth-child(2){ animation-delay:.42s !important; }
+  @keyframes slideUp{ to{ transform:translateY(0); } }
+  body.booted .hint{ animation:hintIn 1s ease 1.7s forwards, hintPulse 2.6s ease-in-out 3.1s infinite; }
+  @keyframes hintIn{ from{opacity:0} to{opacity:.9} }
+
+  /* ---- boot splash (FCC 红底白字) ---- */
+  .boot{
+    position:fixed; inset:0; z-index:80;
+    background:var(--accent);
+    color:#fff;
+    display:grid; place-items:center;
+    cursor:pointer;
+    clip-path:inset(0);
+    transition:clip-path .95s cubic-bezier(.76,0,.24,1);
+  }
+  .boot.gone{ clip-path:inset(0 0 100% 0); pointer-events:none; }
+  .boot::after{
+    content:''; position:absolute; left:0; right:0; bottom:0; height:5px; background:var(--ink);
+  }
+  .boot-word{
+    font-size:clamp(34px,7vw,86px); font-weight:800; letter-spacing:.01em;
+    display:flex; align-items:center; gap:.14em;
+  }
+  .boot-word i{ font-style:normal; font-weight:300; opacity:.85; }
+  .boot-cap{
+    position:absolute; left:50%; bottom:34px; transform:translateX(-50%);
+    font-size:11px; letter-spacing:.32em; text-transform:uppercase; opacity:.9;
+    text-align:center; line-height:1.9;
+  }
+  .boot-cap .blink{ animation:blBlink 1.05s steps(1) infinite; }
+  @keyframes blBlink{ 0%,55%{opacity:1} 56%,100%{opacity:0} }
+  @media (prefers-reduced-motion:reduce){ .boot{ transition:none; } }
+
+  /* ---- tap-to-lock (touch only) ---- */
+  .lock-pill{
+    display:none;
+    position:fixed; right:16px; bottom:22px; z-index:3;
+    font:inherit; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    border:1px solid var(--ink); border-radius:99px;
+    background:rgba(245,245,245,.6); color:var(--ink);
+    padding:9px 16px; pointer-events:auto;
+  }
+  .lock-pill.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  @media (hover:none) and (pointer:coarse){ .lock-pill{ display:block; } }
+
+  .nogl{
+    position:fixed; inset:0; z-index:9;
+    display:none; place-items:center;
+    background:var(--paper); color:var(--ink-soft);
+    text-align:center; line-height:2; padding:24px;
+  }
+  .nogl b{ color:var(--accent); }
+</style>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+
+<div class="ui">
+  <div class="row">
+    <div class="wordmark reveal-up d1">赫子<span class="x">✕</span>中登<small>fluid reveal · 显形实验</small></div>
+    <div class="est reveal-up d2"><b>EST·2026</b><br>擦掉表象</div>
+  </div>
+  <div class="row bottom">
+    <div class="colophon reveal-up d4">
+      <b>动一动鼠标</b>，把「赫子」冲刷开——<span class="accent">看看底下藏着谁。</span><br>
+      Original WebGL2 · zero deps · 流体显形
+    </div>
+    <div class="name-block">
+      <p class="eyebrow reveal-up d3">流体显形实验 — 谁是真身？</p>
+      <h1><span>赫</span><span>子</span></h1>
+    </div>
+  </div>
+</div>
+
+<div class="hint" id="hint">移动鼠标 · 擦掉赫子</div>
+<button class="lock-pill" id="lockPill">按住显形</button>
+
+<div class="nogl" id="nogl">
+  需要 <b>WebGL2</b>。请用现代浏览器打开。<br>
+  若直接双击本地文件看不到人脸，请通过本地服务器 / 线上地址访问（<b>file://</b> 下图片会被 WebGL 拦截）。
+</div>
+
+<div class="boot" id="boot">
+  <div class="boot-word">赫子 <i>✕</i> 中登</div>
+  <div class="boot-cap">点击进入 · 移动鼠标显形<br><span class="blink">▍</span> click to enter</div>
+</div>
+
+<script>
+/* ============================================================
+   赫子 vs 中登 — 流体显形 hero
+   核心流体模拟 / 着色器沿用 lando-hero-replica（原创 WebGL2，零依赖）。
+   改动：静止显示「赫子」，鼠标搅动流体处冲刷显出「中登」；红黑白配色。
+   ============================================================ */
+const CONF = {
+  simScale:0.1, noiseScale:0.25, dt:0.014, dissipation:0.972,
+  pressureIters:4, straightness:1.0, mouseForce:48.0, splatRadius:0.110,
+  maskLow:0.050, maskHigh:0.058, idleAfter:2500, revealDur:1.15, maxDPR:1.5,
+};
+
+/* 可现场微调的对齐 / 裁切参数（window.HERO.set(k,v) 实时改） */
+const TUNE = {
+  // 赫子 / 中登 现在是同一构图的两张（image2 已把中登特效脸合到同一张半身像上），
+  // 两张完全对齐 → 共用同一套摆位，擦开即"原位换脸"。
+  portraitCrop:[0.00, 0.00, 1.00, 1.00], // 整张（两图已对齐，无需分别裁）
+  portraitH:1.80,        // 纵向只放进约 55%（=1/1.80），上下留白给鼠标牵引
+  portraitOffY:-0.78,    // 静止时头顶落在 ~12%，露出 头+上半身
+  panYGain:0.18,         // 鼠标纵向牵引强度：上移露下半身 / 下移人像整体下沉
+  leanX:0.03,            // 轻微水平跟随
+  keyColor:[0.855, 0.850, 0.845], // 影棚底色（抠像用）
+  // 中登对齐修正：image2 生成时躯干比赫子低~7%，把中登采样上移让躯干重合（擦开身子不跳）
+  zdScaleY:1.00, zdShiftY:0.07,
+  smear:0.020,           // 液态对原图的扭曲：原 0.05 → 0.020，减弱让脸更清楚（流动感来自别处不受影响）
+};
+
+const PALETTES = [
+  { // 00 — 纸白打底（默认，FCC 白底红字）
+    name:'paper',
+    bg:'#f5f5f5', fg:'#cd131c', outline:'#d76a70',
+    curBg:'#f4d3d5', curFg:'#cd131c', curOutline:'#231815',
+    cssInk:'#231815', cssSoft:'#8c877f', cssPaper:'#f5f5f5',
+  },
+  { // 01 — 纯黑打底（按 C 切换的彩蛋）
+    name:'noir',
+    bg:'#231815', fg:'#e11624', outline:'#3a2b26',
+    curBg:'#2e211d', curFg:'#e11624', curOutline:'#f5f5f5',
+    cssInk:'#f5f5f5', cssSoft:'#b9b0aa', cssPaper:'#231815',
+  },
+];
+let paletteIdx = 0;
+let revealAllDbg = 0;                 // 调试：把中登整脸显出来
+let fluidLock = false;               // 触屏：自动巡航接管
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ============================================================ 1. GL BOOT */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', { antialias:false, alpha:false, preserveDrawingBuffer:true });
+const dead = msg => { document.getElementById('nogl').style.display='grid'; throw new Error(msg); };
+if (!gl) dead('no webgl2');
+if (!gl.getExtension('EXT_color_buffer_float') &&
+    !gl.getExtension('EXT_color_buffer_half_float')) dead('no float color buffers');
+
+/* ============================================================ 2. SHADERS */
+const VERT = `#version 300 es
+out vec2 vUv;
+void main(){
+  vec2 p = vec2[3](vec2(-1.,-1.), vec2(3.,-1.), vec2(-1.,3.))[gl_VertexID];
+  vUv = p * .5 + .5;
+  gl_Position = vec4(p, 0., 1.);
+}`;
+
+/* 2a. advection (semi-lagrangian + BFECC) */
+const F_ADVECT = `#version 300 es
+precision highp float;
+uniform sampler2D uVel;
+uniform vec2  uAxis;
+uniform vec2  uPx;
+uniform float uDt, uDissipation;
+in vec2 vUv; out vec4 frag;
+void main(){
+  vec2 v0   = texture(uVel, vUv).xy;
+  vec2 back = vUv - v0 * uDt * uAxis;
+  vec2 v1   = texture(uVel, back).xy;
+  vec2 fwd  = back + v1 * uDt * uAxis;
+  v1 += 0.5 * (v0 - texture(uVel, fwd).xy);
+  vec2 c0  = (floor(back / uPx - 0.5) + 0.5) * uPx;
+  vec2 q00 = texture(uVel, c0).xy;
+  vec2 q10 = texture(uVel, c0 + vec2(uPx.x, 0.)).xy;
+  vec2 q01 = texture(uVel, c0 + vec2(0., uPx.y)).xy;
+  vec2 q11 = texture(uVel, c0 + uPx).xy;
+  v1 = clamp(v1, min(min(q00, q10), min(q01, q11)),
+                 max(max(q00, q10), max(q01, q11)));
+  float sp = length(v1);
+  if (sp > 3.0) v1 *= 3.0 / sp;
+  vec2 b = smoothstep(0.0, 0.02, vUv) * smoothstep(1.0, 0.98, vUv);
+  frag = vec4(v1 * uDissipation * (b.x * b.y), 0., 1.);
+}`;
+
+/* 2b. pointer force splat */
+const F_SPLAT = `#version 300 es
+precision highp float;
+uniform vec2  uCenter;
+uniform vec2  uForce;
+uniform float uRadius;
+uniform vec2  uInvAxis;
+in vec2 vUv; out vec4 frag;
+void main(){
+  vec2 d = (vUv - uCenter) * uInvAxis;
+  float fall = 1.0 - smoothstep(0.0, uRadius, length(d));
+  frag = vec4(uForce * uInvAxis * (fall * fall), 0., 0.);
+}`;
+
+/* 2c. divergence */
+const F_DIV = `#version 300 es
+precision highp float;
+uniform sampler2D uVel;
+uniform vec2 uPx;
+uniform float uDt;
+in vec2 vUv; out vec4 frag;
+void main(){
+  float l = texture(uVel, vUv - vec2(uPx.x * 2., 0.)).x;
+  float r = texture(uVel, vUv + vec2(uPx.x * 2., 0.)).x;
+  float b = texture(uVel, vUv - vec2(0., uPx.y * 2.)).y;
+  float t = texture(uVel, vUv + vec2(0., uPx.y * 2.)).y;
+  frag = vec4(((r - l) + (t - b)) * 0.25 / uDt);
+}`;
+
+/* 2d. pressure jacobi */
+const F_JACOBI = `#version 300 es
+precision highp float;
+uniform sampler2D uPressure, uDiv;
+uniform vec2 uPx;
+uniform float uStraightness;
+in vec2 vUv; out vec4 frag;
+void main(){
+  float l = texture(uPressure, vUv - vec2(uPx.x * 2., 0.)).r;
+  float r = texture(uPressure, vUv + vec2(uPx.x * 2., 0.)).r;
+  float b = texture(uPressure, vUv - vec2(0., uPx.y * 2.)).r;
+  float t = texture(uPressure, vUv + vec2(0., uPx.y * 2.)).r;
+  float d = texture(uDiv, vUv).r;
+  frag = vec4((l + r + b + t) / (4.0 + uStraightness) - d);
+}`;
+
+/* 2e. subtract pressure gradient */
+const F_PROJECT = `#version 300 es
+precision highp float;
+uniform sampler2D uVel, uPressure;
+uniform vec2 uPx;
+uniform float uDt;
+in vec2 vUv; out vec4 frag;
+void main(){
+  float l = texture(uPressure, vUv - vec2(uPx.x * 2., 0.)).r;
+  float r = texture(uPressure, vUv + vec2(uPx.x * 2., 0.)).r;
+  float b = texture(uPressure, vUv - vec2(0., uPx.y * 2.)).r;
+  float t = texture(uPressure, vUv + vec2(0., uPx.y * 2.)).r;
+  vec2 v = texture(uVel, vUv).xy;
+  frag = vec4(v - uDt * 0.25 * vec2(r - l, t - b), 0., 1.);
+}`;
+
+/* 2f. background noise field */
+const F_NOISE = `#version 300 es
+precision highp float;
+uniform float uTime;
+uniform vec2  uInvAxis;
+in vec2 vUv; out vec4 frag;
+vec3 hash3(vec3 p){
+  uvec3 v = uvec3(ivec3(floor(p + 0.5))) * uvec3(1664525u, 1013904223u, 2891336453u);
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  v ^= v >> 16u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  return -1.0 + 2.0 * vec3(v & 0x00ffffffu) * (1.0 / 16777215.0);
+}
+float gnoise(vec3 p){
+  vec3 i = floor(p), f = fract(p);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(dot(hash3(i+vec3(0,0,0)), f-vec3(0,0,0)),
+            dot(hash3(i+vec3(1,0,0)), f-vec3(1,0,0)), u.x),
+        mix(dot(hash3(i+vec3(0,1,0)), f-vec3(0,1,0)),
+            dot(hash3(i+vec3(1,1,0)), f-vec3(1,1,0)), u.x), u.y),
+    mix(mix(dot(hash3(i+vec3(0,0,1)), f-vec3(0,0,1)),
+            dot(hash3(i+vec3(1,0,1)), f-vec3(1,0,1)), u.x),
+        mix(dot(hash3(i+vec3(0,1,1)), f-vec3(0,1,1)),
+            dot(hash3(i+vec3(1,1,1)), f-vec3(1,1,1)), u.x), u.y), u.z);
+}
+float fbm(vec3 p){
+  float a = 0.5, s = 0.0;
+  for (int i = 0; i < 4; i++){ s += a * gnoise(p); p *= 2.03; a *= 0.5; }
+  return s;
+}
+void main(){
+  vec2 q = vUv * uInvAxis;
+  float t = uTime * 0.055;
+  vec2 warp = vec2(fbm(vec3(q * 1.2 + 7.3, t)), fbm(vec3(q * 1.2 - 3.1, t)));
+  float n  = fbm(vec3(q * 0.95 + warp * 0.6, t * 0.8));
+  frag = vec4(n * 0.5 + 0.5, 0., 0., 1.);
+}`;
+
+/* 2g. composite: 纸 + 红岛 + 液态蒙版 + 赫子↔中登 双照片 */
+const F_COMPOSITE = `#version 300 es
+precision highp float;
+uniform sampler2D uVel, uNoise;
+uniform vec2  uRes;
+uniform float uTime, uReveal, uRevealAll;
+uniform sampler2D uPhoto;      // 赫子
+uniform sampler2D uPhoto2;     // 中登（与赫子同构图，原位换脸）
+uniform float uHasPhoto, uHasZd;
+uniform float uPhotoAspect;  uniform vec4 uPhotoCrop;
+uniform vec2  uPar;
+uniform float uPanY;           // 鼠标纵向牵引（大范围平移）
+uniform float uLeanX;          // 水平轻微跟随强度
+uniform float uSmear;          // 液态对原图的扭曲强度（越小脸越清楚，流动感不变）
+uniform vec2  uMaskBand;
+uniform vec3  uBg, uFg, uOutline, uCurBg, uCurFg, uCurOutline;
+uniform float uPortraitH, uPortraitOffY;
+uniform float uZdScaleY, uZdShiftY;   // 中登纵向对齐修正（对齐躯干）
+uniform vec3  uKeyColor;
+in vec2 vUv; out vec4 frag;
+
+/* 影棚抠像：与背景灰的色距 + 躯干先验(补白衬衫领) + 左右护栏 */
+float figureKey(vec3 pc, vec2 puv){
+  float k = smoothstep(0.045, 0.11, distance(pc, uKeyColor));
+  float halfW = mix(0.20, 0.52, smoothstep(0.45, 0.98, puv.y));
+  float torso = (1.0 - smoothstep(halfW - 0.06, halfW, abs(puv.x - 0.5)))
+              * smoothstep(0.34, 0.46, puv.y);
+  k = max(k, torso);
+  float frame = smoothstep(0.0, 0.045, puv.x) * smoothstep(1.0, 0.955, puv.x);
+  return k * frame;
+}
+/* 赫子 / 中登 共用：两张已对齐，同一摆位；tex 决定显示谁 */
+vec4 renderPortrait(sampler2D tex, float sY, float oY, vec2 uv, vec2 vel){
+  vec2 axis = uRes / min(uRes.x, uRes.y);
+  float h = uPortraitH;
+  float w = h * uPhotoAspect;
+  float yc = h / (2.0 * axis.y) + uPortraitOffY + uPanY;
+  vec2 s = (uv - vec2(0.5, yc)) * axis;
+  s.x -= uPar.x * uLeanX;
+  vec2 puv = vec2(s.x / w + 0.5, 0.5 - s.y / h);
+  puv += vel * vec2(uSmear, -uSmear);
+  if (any(lessThan(puv, vec2(0.))) || any(greaterThan(puv, vec2(1.)))) return vec4(0.);
+  // 逐张纵向对齐：赫子 sY=1,oY=0；中登按需平移/缩放，使躯干与赫子重合
+  vec2 tuv = vec2(puv.x, puv.y * sY + oY);
+  vec3 raw = texture(tex, mix(uPhotoCrop.xy, uPhotoCrop.zw, tuv)).rgb;
+  vec3 col = (raw - 0.5) * 1.06 + 0.5;
+  return vec4(col, figureKey(raw, tuv));
+}
+float hash12(vec2 p){
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+void main(){
+  float rv = 1.0 - uReveal;
+  vec2 uv = vUv;
+  uv.y = (uv.y + 1.35 * rv) / (1.0 + 1.35 * rv);
+
+  float n = texture(uNoise, uv).r * 2.0 - 1.0;
+  float w = fwidth(n);
+  const float TH = 0.40;
+  float blob = smoothstep(TH - w * 1.6, TH + w * 1.6, n);
+  float nf = n * 5.0;
+  float dl = min(fract(nf), 1.0 - fract(nf));
+  float topo = (1.0 - smoothstep(0.0, fwidth(nf) * 1.4, dl)) * 0.5;
+  float edge = (1.0 - smoothstep(w * 1.8, w * 3.6, abs(n - TH))) + topo;
+
+  vec2 vfield = texture(uVel, uv).xy;
+  float speed = length(vfield);
+  float mask = smoothstep(uMaskBand.x, uMaskBand.y, speed);
+  mask = clamp(mask + uRevealAll, 0.0, 1.0);
+
+  vec3 outside = mix(uBg, mix(uBg, uFg, uReveal), blob);
+  outside = mix(outside, mix(uBg, uOutline, uReveal), edge);
+  vec3 inside = mix(uCurBg, uCurFg, blob);
+  inside = mix(inside, uCurOutline, edge * 0.8);
+  vec3 background = mix(outside, inside, mask);
+
+  vec3 color = background;
+  if (uHasPhoto > 0.5){
+    vec4 hezi = renderPortrait(uPhoto, 1.0, 0.0, uv, vfield);
+    color = mix(color, hezi.rgb, hezi.a * (1.0 - mask));
+  }
+  if (uHasZd > 0.5){
+    vec4 zd = renderPortrait(uPhoto2, uZdScaleY, uZdShiftY, uv, vfield);
+    color = mix(color, zd.rgb, zd.a * mask);
+  }
+
+  color -= (hash12(vUv * uRes + fract(uTime) * 100.0) - 0.5) * 0.035;
+  frag = vec4(color, 1.);
+}`;
+
+/* ============================================================ 3. GL HELPERS */
+function makeProgram(fsSrc){
+  const compile = (type, src) => {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src); gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
+      throw new Error(gl.getShaderInfoLog(sh) + '\n--- in ---\n' + src);
+    return sh;
+  };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+    throw new Error(gl.getProgramInfoLog(prog));
+  const uniforms = {};
+  const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++){
+    const info = gl.getActiveUniform(prog, i);
+    uniforms[info.name] = gl.getUniformLocation(prog, info.name);
+  }
+  return { prog, u: uniforms };
+}
+function makeTarget(w, h, internal, filter){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, internal, w, h);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  return { tex, fbo, w, h };
+}
+function makePingPong(w, h, internal, filter){
+  return { a: makeTarget(w, h, internal, filter),
+           b: makeTarget(w, h, internal, filter),
+           swap(){ [this.a, this.b] = [this.b, this.a]; } };
+}
+function blitTo(target){
+  gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fbo : null);
+  gl.viewport(0, 0, target ? target.w : canvas.width, target ? target.h : canvas.height);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+const PALETTES_F = PALETTES.map(p => {
+  const o = {};
+  for (const k in p) if (typeof p[k] === 'string' && p[k][0] === '#') o[k] = new Float32Array(hex(p[k]));
+  return o;
+});
+
+/* ============================================================ 4. PIPELINE STATE */
+let P;
+function buildPrograms(){
+  P = {
+    advect:makeProgram(F_ADVECT), splat:makeProgram(F_SPLAT), div:makeProgram(F_DIV),
+    jacobi:makeProgram(F_JACOBI), project:makeProgram(F_PROJECT),
+    noise:makeProgram(F_NOISE), composite:makeProgram(F_COMPOSITE),
+  };
+}
+let vel, pressure, divTex, noiseRT;
+let simW, simH, axisX, axisY;
+let viewW = innerWidth, viewH = innerHeight;
+let noiseStale = true;
+
+/* ---- 两张照片：赫子(底) / 中登(擦出) ---- */
+let heziTex = null, heziAspect = 1, heziReady = false;
+let zdTex   = null, zdAspect   = 1, zdReady   = false;
+function uploadTex(img, cropArr){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  const aspect = ((cropArr[2] - cropArr[0]) * img.naturalWidth) /
+                 ((cropArr[3] - cropArr[1]) * img.naturalHeight);
+  return { tex, aspect };
+}
+function loadPhoto(src, cropGetter, assign){
+  const img = new Image();
+  img.onload = () => {
+    try { const r = uploadTex(img, cropGetter()); assign(r, true); }
+    catch (e){ console.warn('photo blocked (file:// 跨域?):', src, e); assign(null, false); }
+  };
+  img.onerror = () => console.warn('photo 404:', src);
+  img.src = src;
+  return img;
+}
+loadPhoto('hezi.jpg',      () => TUNE.portraitCrop, (r, ok) => { if (ok){ heziTex = r.tex; heziAspect = r.aspect; } heziReady = ok; });
+loadPhoto('zhongdeng.jpg', () => TUNE.portraitCrop, (r, ok) => { if (ok){ zdTex = r.tex; zdAspect = r.aspect; } zdReady = ok; });
+
+function allocate(force){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = Math.min(devicePixelRatio || 1, CONF.maxDPR);
+  const cw = rect.width  > 2 ? rect.width  : innerWidth;
+  const ch = rect.height > 2 ? rect.height : innerHeight;
+  const W = Math.max(1, Math.round(cw * dpr));
+  const H = Math.max(1, Math.round(ch * dpr));
+  if (!force && vel && W === canvas.width && H === canvas.height) return;
+  viewW = cw; viewH = ch;
+  canvas.width = W; canvas.height = H;
+  simW = Math.max(64, Math.round(W * CONF.simScale));
+  simH = Math.max(64, Math.round(H * CONF.simScale));
+  const minDim = Math.min(W, H);
+  axisX = minDim / W; axisY = minDim / H;
+  const free = t => { if (t){ gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } };
+  if (vel){ free(vel.a); free(vel.b); free(pressure.a); free(pressure.b); free(divTex); free(noiseRT); }
+  vel      = makePingPong(simW, simH, gl.RG16F, gl.LINEAR);
+  pressure = makePingPong(simW, simH, gl.R16F,  gl.NEAREST);
+  divTex   = makeTarget (simW, simH, gl.R16F,  gl.NEAREST);
+  const nw = Math.max(96, Math.round(W * CONF.noiseScale));
+  const nh = Math.max(96, Math.round(H * CONF.noiseScale));
+  noiseRT  = makeTarget(nw, nh, gl.R16F, gl.LINEAR);
+  noiseStale = true;
+}
+
+/* ============================================================ 5. POINTER + IDLE */
+const pointer = { x:0.5, y:0.5, px:0.5, py:0.5, vx:0, vy:0, real:false, lastMove:performance.now(), auto:0 };
+function onMove(cx, cy){
+  if (fluidLock) return;
+  pointer.x = cx / viewW;
+  pointer.y = 1 - cy / viewH;
+  pointer.lastMove = performance.now();
+  if (!pointer.real){
+    pointer.real = true;
+    pointer.px = pointer.x; pointer.py = pointer.y;
+    document.getElementById('hint').classList.add('gone');
+  }
+}
+addEventListener('pointermove', e => onMove(e.clientX, e.clientY), { passive:true });
+addEventListener('touchmove',  e => { const t = e.touches[0]; if (t) onMove(t.clientX, t.clientY); }, { passive:true });
+
+function updatePointer(now, t, elapsedMs){
+  const idleFor = now - pointer.lastMove;
+  const wantAuto = (idleFor > CONF.idleAfter) ? 1 : 0;
+  pointer.auto += (wantAuto - pointer.auto) * 0.022;
+  if (pointer.auto > 0.002 && !reducedMotion){
+    const ax = 0.5  + 0.24 * Math.sin(t * 0.55) + 0.07 * Math.sin(t * 1.9);
+    const ay = 0.47 + 0.19 * Math.sin(t * 1.10 + Math.PI / 2) + 0.06 * Math.cos(t * 1.5);
+    pointer.x += (ax - pointer.x) * 0.085 * pointer.auto;
+    pointer.y += (ay - pointer.y) * 0.085 * pointer.auto;
+  }
+  const rate = 16.7 / Math.max(elapsedMs, 4);
+  pointer.vx = (pointer.x - pointer.px) * rate;
+  pointer.vy = (pointer.y - pointer.py) * rate;
+  pointer.px = pointer.x; pointer.py = pointer.y;
+}
+
+/* ============================================================ 6. FRAME LOOP */
+let t0 = performance.now();
+let lastFrame = t0;
+let simAcc = 0;
+let presentNo = 0;
+let rafId = 0;
+const SIM_MS = 1000 / 65;
+let parX = 0, parY = 0;
+
+function simStep(){
+  gl.disable(gl.BLEND);
+  let p = P.advect;
+  gl.useProgram(p.prog);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vel.a.tex);
+  gl.uniform1i(p.u.uVel, 0);
+  gl.uniform2f(p.u.uAxis, axisX, axisY);
+  gl.uniform2f(p.u.uPx, 1 / simW, 1 / simH);
+  gl.uniform1f(p.u.uDt, CONF.dt);
+  gl.uniform1f(p.u.uDissipation, CONF.dissipation);
+  blitTo(vel.b);
+
+  const boost = 1 + pointer.auto * 1.6;
+  const fx = pointer.vx * CONF.mouseForce * boost;
+  const fy = pointer.vy * CONF.mouseForce * boost;
+  if (Math.abs(fx) > 1e-5 || Math.abs(fy) > 1e-5){
+    p = P.splat;
+    gl.useProgram(p.prog);
+    gl.uniform2f(p.u.uCenter, pointer.x, pointer.y);
+    gl.uniform2f(p.u.uForce, fx, fy);
+    gl.uniform1f(p.u.uRadius, CONF.splatRadius);
+    gl.uniform2f(p.u.uInvAxis, 1 / axisX, 1 / axisY);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    blitTo(vel.b);
+    gl.disable(gl.BLEND);
+  }
+
+  p = P.div;
+  gl.useProgram(p.prog);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vel.b.tex);
+  gl.uniform1i(p.u.uVel, 0);
+  gl.uniform2f(p.u.uPx, 1 / simW, 1 / simH);
+  gl.uniform1f(p.u.uDt, CONF.dt);
+  blitTo(divTex);
+
+  p = P.jacobi;
+  gl.useProgram(p.prog);
+  gl.uniform2f(p.u.uPx, 1 / simW, 1 / simH);
+  gl.uniform1f(p.u.uStraightness, CONF.straightness);
+  gl.uniform1i(p.u.uPressure, 0);
+  gl.uniform1i(p.u.uDiv, 1);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, divTex.tex);
+  for (let i = 0; i < CONF.pressureIters; i++){
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, pressure.a.tex);
+    blitTo(pressure.b);
+    pressure.swap();
+  }
+
+  p = P.project;
+  gl.useProgram(p.prog);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vel.b.tex);
+  gl.uniform1i(p.u.uVel, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, pressure.a.tex);
+  gl.uniform1i(p.u.uPressure, 1);
+  gl.uniform2f(p.u.uPx, 1 / simW, 1 / simH);
+  gl.uniform1f(p.u.uDt, CONF.dt);
+  blitTo(vel.a);
+}
+
+function frame(now){
+  rafId = requestAnimationFrame(frame);
+  if (reducedMotion && now - lastFrame < 33) return;
+  renderFrame(now);
+}
+function renderFrame(now){
+  const t = (now - t0) / 1000;
+  const elapsed = Math.min(100, now - lastFrame);
+  lastFrame = now;
+
+  updatePointer(now, t, elapsed);
+  if (!reducedMotion){
+    simAcc = Math.min(simAcc + elapsed, 67);
+    while (simAcc >= SIM_MS){ simStep(); simAcc -= SIM_MS; }
+  }
+
+  if (noiseStale || (!reducedMotion && presentNo % 3 === 0)){
+    const np = P.noise;
+    gl.useProgram(np.prog);
+    gl.uniform1f(np.u.uTime, t);
+    gl.uniform2f(np.u.uInvAxis, 1 / axisX, 1 / axisY);
+    blitTo(noiseRT);
+    noiseStale = false;
+  }
+  presentNo++;
+
+  const pal = PALETTES_F[paletteIdx];
+  const reveal = Math.min(1, t / CONF.revealDur);
+  const eased = 1 - Math.pow(1 - reveal, 3);
+  const p = P.composite;
+  gl.useProgram(p.prog);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vel.a.tex);
+  gl.uniform1i(p.u.uVel, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, noiseRT.tex);
+  gl.uniform1i(p.u.uNoise, 1);
+  gl.uniform2f(p.u.uRes, canvas.width, canvas.height);
+  gl.uniform1f(p.u.uTime, t);
+  gl.uniform1f(p.u.uReveal, eased);
+  gl.uniform1f(p.u.uRevealAll, revealAllDbg);
+  gl.uniform2f(p.u.uMaskBand, CONF.maskLow, CONF.maskHigh);
+  if (!reducedMotion){
+    parX += ((pointer.x * 2 - 1) - parX) * 0.07;
+    parY += ((pointer.y * 2 - 1) - parY) * 0.07;
+  }
+  gl.uniform2f(p.u.uPar, parX, parY);
+  gl.uniform1f(p.u.uPanY, parY * TUNE.panYGain);
+  gl.uniform1f(p.u.uLeanX, TUNE.leanX);
+  gl.uniform1f(p.u.uSmear, TUNE.smear);
+  gl.uniform1f(p.u.uPortraitH, TUNE.portraitH);
+  gl.uniform1f(p.u.uPortraitOffY, TUNE.portraitOffY);
+  gl.uniform1f(p.u.uZdScaleY, TUNE.zdScaleY);
+  gl.uniform1f(p.u.uZdShiftY, TUNE.zdShiftY);
+  gl.uniform1f(p.u.uPhotoAspect, heziAspect);
+  gl.uniform4f(p.u.uPhotoCrop, TUNE.portraitCrop[0], TUNE.portraitCrop[1], TUNE.portraitCrop[2], TUNE.portraitCrop[3]);
+  gl.uniform3f(p.u.uKeyColor, TUNE.keyColor[0], TUNE.keyColor[1], TUNE.keyColor[2]);
+  // 赫子 → TEXTURE2
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, heziTex || noiseRT.tex);
+  gl.uniform1i(p.u.uPhoto, 2);
+  gl.uniform1f(p.u.uHasPhoto, heziReady ? 1 : 0);
+  // 中登 → TEXTURE3（与赫子同构图，复用同一套摆位 uniform）
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, zdTex || noiseRT.tex);
+  gl.uniform1i(p.u.uPhoto2, 3);
+  gl.uniform1f(p.u.uHasZd, zdReady ? 1 : 0);
+  gl.uniform3fv(p.u.uBg, pal.bg);
+  gl.uniform3fv(p.u.uFg, pal.fg);
+  gl.uniform3fv(p.u.uOutline, pal.outline);
+  gl.uniform3fv(p.u.uCurBg, pal.curBg);
+  gl.uniform3fv(p.u.uCurFg, pal.curFg);
+  gl.uniform3fv(p.u.uCurOutline, pal.curOutline);
+  blitTo(null);
+}
+
+/* ============================================================ 7. LIFECYCLE + UI */
+function applyPaletteCSS(){
+  const pal = PALETTES[paletteIdx];
+  const r = document.documentElement.style;
+  r.setProperty('--ink', pal.cssInk);
+  r.setProperty('--ink-soft', pal.cssSoft);
+  r.setProperty('--paper', pal.cssPaper);
+  r.setProperty('--accent', pal.fg);
+}
+addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'c' || e.key === 'C'){ paletteIdx = (paletteIdx + 1) % PALETTES.length; applyPaletteCSS(); }
+  if (e.key === 'h' || e.key === 'H') revealAllDbg = revealAllDbg ? 0 : 1;
+});
+let resizeTimer = 0;
+const queueAllocate = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => allocate(), 150); };
+addEventListener('resize', queueAllocate);
+if (window.ResizeObserver){
+  let roInit = false;
+  new ResizeObserver(() => { if (roInit && canvas.getBoundingClientRect().width > 2) allocate(true); roInit = true; }).observe(canvas);
+}
+(function watchDPR(){
+  matchMedia(`(resolution: ${devicePixelRatio}dppx)`)
+    .addEventListener('change', () => { queueAllocate(); watchDPR(); }, { once:true });
+})();
+canvas.addEventListener('webglcontextlost', e => {
+  e.preventDefault(); cancelAnimationFrame(rafId);
+  document.getElementById('nogl').style.display = 'grid';
+});
+canvas.addEventListener('webglcontextrestored', () => {
+  buildPrograms(); allocate(true);
+  loadPhoto('hezi.jpg',      () => TUNE.portraitCrop, (r, ok) => { if (ok){ heziTex = r.tex; heziAspect = r.aspect; } heziReady = ok; });
+  loadPhoto('zhongdeng.jpg', () => TUNE.portraitCrop, (r, ok) => { if (ok){ zdTex = r.tex; zdAspect = r.aspect; } zdReady = ok; });
+  document.getElementById('nogl').style.display = 'none';
+  lastFrame = performance.now(); simAcc = 0;
+  rafId = requestAnimationFrame(frame);
+});
+
+/* ---- boot: 点击 / 任意交互进入，重启入场动画 ---- */
+const bootEl = document.getElementById('boot');
+function ignite(){
+  if (document.body.classList.contains('booted')) return;
+  document.body.classList.add('booted');
+  bootEl.classList.add('gone');
+  t0 = performance.now(); lastFrame = t0; simAcc = 0;   // 重启入场帘幕
+}
+bootEl.addEventListener('click', ignite);
+addEventListener('keydown', ignite, { once:true });
+addEventListener('pointerdown', ignite, { once:true });
+setTimeout(ignite, 3000);   // 安全兜底：3s 后自动进入
+
+/* ---- tap-to-lock（触屏）---- */
+const lockPill = document.getElementById('lockPill');
+lockPill.addEventListener('click', () => {
+  fluidLock = !fluidLock;
+  lockPill.classList.toggle('on', fluidLock);
+  lockPill.textContent = fluidLock ? '已显形 · 巡航' : '按住显形';
+  if (fluidLock) pointer.lastMove = 0;   // 立刻交给自动巡航
+});
+
+try {
+  buildPrograms(); allocate(); applyPaletteCSS();
+  rafId = requestAnimationFrame(frame);
+} catch (err){
+  document.getElementById('nogl').style.display = 'grid';
+  console.error(err);
+}
+
+/* debug handle */
+window.HERO = {
+  TUNE, CONF, pointer,
+  set(k, v){ TUNE[k] = v; },
+  revealAll(v){ revealAllDbg = v ? 1 : 0; },
+  palette(i){ paletteIdx = i % PALETTES.length; applyPaletteCSS(); },
+  nudge(x, y){ onMove(x, y); },
+  step(n = 1){ for (let i = 0; i < n; i++) renderFrame(lastFrame + 16.7); return lastFrame; },
+  dbg(){ return { heziReady, zdReady, hasHeziTex:!!heziTex, hasZdTex:!!zdTex, heziAspect:+heziAspect.toFixed(3), zdAspect:+zdAspect.toFixed(3), reducedMotion, canvas:[canvas.width, canvas.height] }; },
+};
+</script>
+</body>
+</html>
